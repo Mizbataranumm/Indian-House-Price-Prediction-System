@@ -1,0 +1,170 @@
+{
+  "project_name": "Indian House Price Prediction Dashboard",
+  "theme": "Light",
+  "archetype": "Archetype 4 (Swiss & High-Contrast)",
+  "emotional_tone": "Authoritative, Objective, Technical, Precise",
+  "typography": {
+    "headings": {
+      "family": "Cabinet Grotesk",
+      "weights": ["light", "black", "bold"],
+      "usage": "Use tight letter spacing (tracking-tight) for H1-H3. Use black weight for metric numbers."
+    },
+    "body": {
+      "family": "IBM Plex Sans",
+      "weights": ["regular", "medium", "semibold"],
+      "usage": "Highly readable, technical body font for tables and tooltips."
+    },
+    "mono": {
+      "family": "IBM Plex Mono",
+      "weights": ["regular"],
+      "usage": "For SHAP values, metrics, numerical data, and table IDs."
+    },
+    "scale": {
+      "h1": "text-4xl sm:text-5xl tracking-tighter",
+      "h2": "text-2xl sm:text-3xl tracking-tight",
+      "h3": "text-xl sm:text-2xl",
+      "h4": "text-lg font-bold",
+      "body": "text-sm md:text-base leading-relaxed",
+      "metric": "text-4xl sm:text-5xl font-black tracking-tighter",
+      "overline": "text-xs tracking-[0.2em] uppercase font-semibold text-slate-500"
+    }
+  },
+  "colors": {
+    "background": {
+      "primary": "#FFFFFF",
+      "secondary": "#F8FAFC",
+      "tertiary": "#F1F5F9",
+      "overlay": "rgba(255, 255, 255, 0.7)"
+    },
+    "text": {
+      "primary": "#0F172A",
+      "secondary": "#475569",
+      "muted": "#94A3B8"
+    },
+    "brand": {
+      "primary": "#2563EB",
+      "primary_hover": "#1D4ED8",
+      "accent": "#0F172A"
+    },
+    "semantic": {
+      "success": "#10B981",
+      "success_bg": "#D1FAE5",
+      "warning": "#F59E0B",
+      "warning_bg": "#FEF3C7",
+      "error": "#EF4444",
+      "error_bg": "#FEE2E2",
+      "info": "#3B82F6",
+      "info_bg": "#EFF6FF"
+    },
+    "borders": {
+      "default": "#E2E8F0",
+      "hover": "#CBD5E1",
+      "focus": "#2563EB"
+    },
+    "charts": {
+      "primary": "#2563EB",
+      "secondary": "#0F172A",
+      "tertiary": "#94A3B8",
+      "quaternary": "#10B981",
+      "quinary": "#F59E0B",
+      "grid_lines": "#E5E7EB"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous Spacing, Optical Alignment, Mobile-First",
+    "grid_system": {
+      "mode": "MODE B: THE CONTROL ROOM GRID",
+      "base": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
+      "gap": "gap-4 md:gap-6 lg:gap-8"
+    },
+    "container_padding": "p-6 md:p-8",
+    "section_spacing": "py-12 md:py-20",
+    "border_radius": {
+      "cards": "rounded-lg",
+      "buttons": "rounded-md",
+      "inputs": "rounded-md"
+    }
+  },
+  "surfaces_and_micro_themes": {
+    "cards": {
+      "style": "Neumorphism (Tactile Variant)",
+      "background": "bg-white",
+      "border": "border border-slate-200",
+      "shadow": "shadow-sm",
+      "hover": "hover:-translate-y-1 hover:shadow-md transition-all duration-200"
+    },
+    "headers": {
+      "style": "Glassmorphism (Crystal)",
+      "classes": "backdrop-blur-xl bg-white/80 border-b border-slate-200 shadow-sm z-50 sticky top-0"
+    },
+    "tables": {
+      "header_bg": "bg-slate-50",
+      "row_hover": "hover:bg-slate-50 transition-colors",
+      "border": "border border-slate-200"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-blue-600 text-white hover:bg-blue-700 hover:text-white focus:ring-2 focus:ring-blue-300 font-semibold transition-all",
+      "secondary": "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 focus:ring-2 focus:ring-slate-200 font-medium transition-all"
+    },
+    "inputs": {
+      "default": "border-slate-200 bg-white text-slate-900 focus:border-blue-500 focus:ring-blue-500 rounded-md",
+      "labels": "text-sm font-semibold text-slate-700 mb-1"
+    },
+    "charts": {
+      "library": "recharts",
+      "tooltip": "bg-white border border-slate-200 shadow-lg rounded-md p-3",
+      "axis_text": "text-xs text-slate-500",
+      "grid": "stroke-slate-100 stroke-dasharray-3-3"
+    }
+  },
+  "motion_and_interactions": {
+    "hover_states": "All interactive elements MUST explicitly set hover text color. E.g., hover:bg-slate-50 hover:text-slate-900",
+    "focus_states": "High contrast focus rings required on all inputs/buttons. E.g., focus:ring-2 focus:ring-blue-500 focus:ring-offset-1",
+    "transitions": "Use specific properties (transition-colors, transition-transform) with duration-200 ease-in-out.",
+    "entrance_animations": "Staggered fade-in-up for dashboard widgets using Framer Motion (initial: opacity-0 translate-y-4)."
+  },
+  "icons": {
+    "library": "@phosphor-icons/react",
+    "style": "duotone or regular",
+    "usage": "Use for clear functional wayfinding in a data-heavy dashboard. Add aria-hidden='true' to decorative icons."
+  },
+  "media": {
+    "logos": [
+      {
+        "category": "app_logo",
+        "url": "https://images.unsplash.com/photo-1633419461186-7d40a38105ec?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMG1pbmltYWwlMjBsb2dvfGVufDB8fHx8MTc3ODI0Mjg4Nnww&ixlib=rb-4.1.0&q=85",
+        "description": "Abstract blue and white logo for dashboard header"
+      }
+    ],
+    "avatars": [
+      {
+        "category": "user_avatar",
+        "url": "https://images.pexels.com/photos/7580822/pexels-photo-7580822.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Professional user avatar for header/settings profile"
+      }
+    ],
+    "property_images": [
+      {
+        "category": "property_placeholder",
+        "url": "https://images.unsplash.com/photo-1764996915324-91919cee14d3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NDh8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBpbmRpYW4lMjBob3VzZSUyMGFyY2hpdGVjdHVyZXxlbnwwfHx8fDE3NzgyNDI4ODd8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Modern Indian residential property image for comparison tool / property cards"
+      }
+    ]
+  },
+  "accessibility_and_testing": {
+    "contrast": "Ensure minimum 4.5:1 ratio for standard text and 3:1 for large text against background.",
+    "data_testid": "ALL interactive elements (inputs, sliders, buttons, chart wrappers) MUST have descriptive kebab-case data-testid attributes (e.g., data-testid='predict-price-button').",
+    "aria": "Use aria-labels for icon-only buttons and complex interactive charts."
+  },
+  "instructions_to_main_agent": [
+    "Strictly adhere to the Light theme (Archetype 4). Do not use dark mode or unnecessary neon gradients.",
+    "Use Shadcn UI for complex interactive components (Tables, Dropdowns, Sliders, Tabs) but customize borders in favor of the specified Neumorphic/Swiss clean style (1px border, shadow-sm).",
+    "Use Recharts for data visualizations: SHAP values, Feature Importance, Residual Plots, Learning Curves, Price Distributions.",
+    "Implement the Layout using MODE B: THE CONTROL ROOM GRID (grid-cols-4 for large screens, grid-cols-1 for mobile). Widgets must stretch vertically using h-full.",
+    "DO NOT use generic fonts like Inter for headings; stick to Cabinet Grotesk for headings and IBM Plex Sans for body. Do not add Google Fonts unnecessarily if local files exist, otherwise load Cabinet Grotesk and IBM Plex Sans via Fontsource or Google Fonts.",
+    "Make sure all properties (like Area, Price, EMI) in calculators use Indian Number Format (INR Lakhs/Crores) as explicitly requested.",
+    "Include 'data-testid' attributes in all key interaction points, forms, and charts to enable reliable E2E testing."
+  ]
+}

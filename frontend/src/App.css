@@ -1,0 +1,4 @@
+/* Component-level styles. Most styling lives in index.css + Tailwind. */
+.scroll-fade {
+  -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+}

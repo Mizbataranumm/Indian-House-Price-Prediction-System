@@ -1,0 +1,9 @@
+node_modules/
+**pycache**/
+.pytest_cache/
+.ruff_cache/
+.emergent/
+.env
+dist/
+build/
+*.log

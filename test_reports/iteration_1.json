@@ -1,0 +1,62 @@
+{
+  "summary": "Tested backend (13 pytest tests) and frontend (all 7 pages) of Indian House Price Prediction System. 11/13 backend tests pass and 6/7 frontend pages render correctly with full data integration. Found 1 critical backend bug (PDF endpoint returns 500 due to None handling), 1 minor display issue (Linear Regression shows ₹0 instead of 'unstable'), and 1 transient race in /api/status best_model.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/report/pdf",
+        "issue": "Returns 500 Internal Server Error. Root cause: pdf_report.py:_fmt_inr(None) raises TypeError because Linear Regression's all_predictions value is None when its prediction is unstable (intentional per agent context). _fmt_inr does 'if v >= 1e7' on None.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/status",
+        "issue": "Intermittent: returned best_model=null on the first cold call during pytest run although trained=true. Subsequent calls return 'Random Forest' correctly. Possible race between p.fitted being set and artifacts.best_model_name being populated, or the initial flaky run hit a stale process from hot-reload."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Predict / all_predictions list",
+        "issue": "Linear Regression renders as '₹0' when its prediction is None (unstable). Agent context note specified an 'unstable' label should appear. Currently displays misleading ₹0.",
+        "selector": "across-all-models row 'Linear'",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Predict -> PDF download",
+        "issue": "Clicking PDF button never starts a download because backend /api/report/pdf returns 500. Same root cause as backend critical bug.",
+        "affected_selectors": ["Predict page PDF button"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backend_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix pdf_report.py:_fmt_inr to handle None values (e.g., 'return \"unstable\"' when v is None) so /api/report/pdf returns 200.",
+    "In Predict.jsx all_predictions rendering, show 'unstable' (or '—') instead of '₹0' when v is null/None (similar to backend fix).",
+    "Investigate transient /api/status best_model=null race (likely set order in ml_pipeline ensure_trained: set fitted=True only after artifacts.best_model_name is assigned)."
+  ],
+  "critical_code_review_comments": [
+    "pdf_report.py:_fmt_inr is not None-safe though all_predictions can legitimately contain None for unstable Linear Regression — caller (build_report) should filter or formatter should accept None.",
+    "Frontend route mismatch risk: nav uses '/models' but feature label is 'Model Lab'; URL '/model-lab' 404s. Consider keeping both via redirect or rename to '/model-lab' for SEO/clarity.",
+    "Predict.jsx renders price=Math.round(v) where v can be null -> NaN -> displays as ₹0. Add null guard with 'unstable' badge.",
+    "server.py /api/predict always upserts to MongoDB even when save=true (good); but no index on session_id+created_at — history queries on large datasets may slow down. Consider creating compound index.",
+    "ml_pipeline must set artifacts.best_model_name BEFORE setting self.fitted=True to avoid status race."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backend_api.py (created)"
+  ],
+  "success_rate": {"backend": "85% (11/13)", "frontend": "86% (6/7 — PDF download fails due to backend)"},
+  "test_credentials": "No auth required. session_id is any string.",
+  "seed_data_creation": "None permanent. Test history records were created and cleaned up using TEST_<uuid> session_ids.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend trains lazily; first call to ensure_trained takes ~45s. Frontend route for Model Lab is '/models' (not '/model-lab'). All 6 cities + ~1700 localities load via /api/dataset/summary. PDF endpoint will continue to 500 until pdf_report.py:_fmt_inr handles None. After fix, retest: curl -s -X POST $BASE/api/report/pdf -H 'Content-Type: application/json' -d '{\"input\":{\"city\":\"Mumbai\",\"locality\":\"Andheri West\",\"bhk\":2,\"area_sqft\":900,\"resale\":1,\"tier\":1}}' --output /tmp/r.pdf && file /tmp/r.pdf",
+  "rca of the issue": "PDF 500: in /app/backend/pdf_report.py line 16, _fmt_inr does numeric comparison 'v >= 1e7' on a None argument. _fmt_inr is invoked at line 86 inside a list-comp building the model-comparison table from prediction['all_predictions']; Linear Regression's value is None when its OHE-collinearity-driven prediction is unstable. Fix: at top of _fmt_inr add 'if v is None: return \"—\"' or filter Nones in the caller. status race: /api/status reads p.fitted and p.artifacts.best_model_name independently; if best_model_name is set after fitted=True, a request between them returns trained=true with best_model=None. Fix order in ml_pipeline.ensure_trained."
+}
