@@ -118,7 +118,7 @@ def build_canonical(force: bool = False) -> pd.DataFrame:
     psf = df["price_inr"] / df["area_sqft"]
     df = df[(psf >= 500) & (psf <= 60000)]
 
-   # 5. Engineered features
+# 5. Engineered features
 df["price_per_sqft"] = df["price_inr"] / df["area_sqft"]
 
 # Remove invalid infinity and NaN values
