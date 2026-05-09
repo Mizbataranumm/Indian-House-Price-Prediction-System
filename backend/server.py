@@ -32,10 +32,12 @@ db = client[DB_NAME]
 app = FastAPI(title="Indian House Price Prediction API")
 api = APIRouter(prefix="/api")
 
-origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
-    CORSMiddleware, allow_origins=origins, allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
