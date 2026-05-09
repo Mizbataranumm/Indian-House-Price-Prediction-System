@@ -118,43 +118,43 @@ def build_canonical(force: bool = False) -> pd.DataFrame:
     psf = df["price_inr"] / df["area_sqft"]
     df = df[(psf >= 500) & (psf <= 60000)]
 
-# 5. Engineered features
-df["price_per_sqft"] = df["price_inr"] / df["area_sqft"]
+    # 5. Engineered features
+    df["price_per_sqft"] = df["price_inr"] / df["area_sqft"]
 
-# Remove invalid infinity and NaN values
-df.replace([np.inf, -np.inf], np.nan, inplace=True)
-df.dropna(inplace=True)
+    # Remove invalid infinity and NaN values
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df.dropna(inplace=True)
 
-# Tier (all six are Tier-1 metros)
-df["tier"] = 1
+    # Tier (all six are Tier-1 metros)
+    df["tier"] = 1
 
-# Amenity score = sum of meaningful amenity flags
-df["amenity_score"] = df[AMENITY_COLS].sum(axis=1)
+    # Amenity score = sum of meaningful amenity flags
+    df["amenity_score"] = df[AMENITY_COLS].sum(axis=1)
 
-# Ratio of bedrooms to area (sqft per BHK)
-df["sqft_per_bhk"] = df["area_sqft"] / df["bhk"]
+    # Ratio of bedrooms to area (sqft per BHK)
+    df["sqft_per_bhk"] = df["area_sqft"] / df["bhk"]
 
-# Remove invalid values again after calculations
-df.replace([np.inf, -np.inf], np.nan, inplace=True)
-df.dropna(inplace=True)
+    # Remove invalid values again after calculations
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df.dropna(inplace=True)
 
-# Locality median price per sqft
-loc_med = (
-    df.groupby(["city", "locality"])["price_per_sqft"]
-    .transform("median")
-)
+    # Locality median price per sqft
+    loc_med = (
+        df.groupby(["city", "locality"])["price_per_sqft"]
+        .transform("median")
+    )
 
-df["locality_psf_median"] = loc_med
+    df["locality_psf_median"] = loc_med
 
-# City median ₹/sqft
-df["city_psf_median"] = (
-    df.groupby("city")["price_per_sqft"]
-    .transform("median")
-)
+    # City median ₹/sqft
+    df["city_psf_median"] = (
+        df.groupby("city")["price_per_sqft"]
+            .transform("median")
+    )
 
-# Final cleanup
-df.replace([np.inf, -np.inf], np.nan, inplace=True)
-df.dropna(inplace=True)
+    # Final cleanup
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df.dropna(inplace=True)
 
     os.makedirs(os.path.dirname(CANONICAL_PATH), exist_ok=True)
     df.to_csv(CANONICAL_PATH, index=False)
