@@ -21,8 +21,10 @@ import pandas as pd
 
 log = logging.getLogger("dataset")
 
-RAW_DIR = "/app/data/raw"
-CANONICAL_PATH = "/app/data/indian_housing.csv"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+RAW_DIR = os.path.join(BASE_DIR, "..", "data", "raw")
+CANONICAL_PATH = os.path.join(BASE_DIR, "..", "data", "indian_housing.csv")
 
 CITIES = ["Mumbai", "Delhi", "Bangalore", "Chennai", "Hyderabad", "Kolkata"]
 
