@@ -153,6 +153,7 @@ def build_canonical(force: bool = False) -> pd.DataFrame:
     )
 
     # Final cleanup
+       # Final cleanup
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df.dropna(inplace=True)
 
