@@ -30,6 +30,10 @@ import xgboost as xgb
 import dataset as ds_mod
 
 log = logging.getLogger("ml")
+FAST_TRAINING = os.environ.get(
+    "FAST_TRAINING",
+    "1" if os.environ.get("RENDER") else "0",
+) == "1"
 
 # ---- Feature schema (post-engineering) ----
 NUMERIC_FEATURES = [
@@ -61,18 +65,28 @@ def _build_preprocessor() -> ColumnTransformer:
 
 
 def _models() -> Dict[str, Any]:
+    rf_estimators = 48 if FAST_TRAINING else 120
+    rf_depth = 12 if FAST_TRAINING else 16
+    xgb_estimators = 120 if FAST_TRAINING else 300
+    xgb_depth = 4 if FAST_TRAINING else 6
+    lasso_iters = 8000 if FAST_TRAINING else 20000
+    svr_c = 4.0 if FAST_TRAINING else 5.0
     return {
         "Linear Regression": LinearRegression(),
         "Ridge Regression":  Ridge(alpha=1.0, random_state=42),
-        "Lasso Regression":  Lasso(alpha=0.001, random_state=42, max_iter=20000),
+        "Lasso Regression":  Lasso(alpha=0.001, random_state=42,
+                                   max_iter=lasso_iters),
         "Random Forest":     RandomForestRegressor(
-            n_estimators=120, max_depth=16, min_samples_leaf=3,
+            n_estimators=rf_estimators, max_depth=rf_depth,
+            min_samples_leaf=3,
             n_jobs=-1, random_state=42),
         "XGBoost":           xgb.XGBRegressor(
-            n_estimators=300, max_depth=6, learning_rate=0.08,
+            n_estimators=xgb_estimators, max_depth=xgb_depth,
+            learning_rate=0.08,
             subsample=0.9, colsample_bytree=0.9, random_state=42, n_jobs=-1,
             tree_method="hist"),
-        "SVR":               SVR(kernel="rbf", C=5.0, epsilon=0.05, gamma="scale"),
+        "SVR":               SVR(kernel="rbf", C=svr_c, epsilon=0.05,
+                                 gamma="scale"),
     }
 
 
@@ -118,6 +132,11 @@ class MLPipeline:
         self.artifacts = TrainArtifacts()
         self._shap_explainer = None
         self._shap_feature_names: List[str] = []
+        self.training_started_at = 0.0
+        self.training_in_progress = False
+        self.training_current_model = ""
+        self.training_models_total = 0
+        self.training_models_done = 0
         # Per-locality and city ₹/sqft medians used to fill engineered features
         # for new (user-input) rows.
         self._loc_psf: Dict[tuple, float] = {}
@@ -234,6 +253,10 @@ class MLPipeline:
         return pd.DataFrame([row])
 
     def _train(self) -> None:
+        self.training_started_at = time.time()
+        self.training_in_progress = True
+        self.training_current_model = "Preparing dataset"
+        self.training_models_done = 0
         df = ds_mod.build_canonical(force=False)
         df = _remove_outliers(df, ["price_per_sqft"], k=2.5)
         df = _remove_outliers(df, ["area_sqft"], k=3.0)
@@ -258,13 +281,24 @@ class MLPipeline:
         metrics: Dict[str, Dict[str, float]] = {}
         # SVR is O(n^2) so subsample heavily for fitting & CV
         rng = np.random.default_rng(0)
-        svr_idx = rng.choice(len(Xtr), size=min(3000, len(Xtr)), replace=False)
+        svr_idx = rng.choice(
+            len(Xtr),
+            size=min(1500 if FAST_TRAINING else 3000, len(Xtr)),
+            replace=False,
+        )
         # For CV we use a sub-sample so total time stays bounded
-        cv_idx = rng.choice(len(X), size=min(8000, len(X)), replace=False)
+        cv_idx = rng.choice(
+            len(X),
+            size=min(4000 if FAST_TRAINING else 8000, len(X)),
+            replace=False,
+        )
         cv_X_full = X.iloc[cv_idx]
         cv_y_full = np.log1p(y[cv_idx])
 
-        for name, est in _models().items():
+        models = _models()
+        self.training_models_total = len(models)
+        for name, est in models.items():
+            self.training_current_model = name
             t0 = time.time()
             pipe = Pipeline([("pre", _build_preprocessor()), ("model", est)])
             if name == "SVR":
@@ -296,6 +330,7 @@ class MLPipeline:
             }
             self.fitted[name] = pipe
             self.test_preds[name] = pred
+            self.training_models_done += 1
             log.info("Trained %s in %.1fs r2=%.3f", name,
                      metrics[name]["train_time_sec"], metrics[name]["r2"])
 
@@ -358,10 +393,14 @@ class MLPipeline:
         try:
             # Use a sub-sample to keep learning_curve fast
             lc_idx = np.random.default_rng(1).choice(
-                len(X), size=min(6000, len(X)), replace=False)
+                len(X),
+                size=min(2500 if FAST_TRAINING else 6000, len(X)),
+                replace=False,
+            )
             sizes, train_scores, val_scores = learning_curve(
                 self.fitted[best], X.iloc[lc_idx], np.log1p(y[lc_idx]), cv=3,
-                train_sizes=np.linspace(0.2, 1.0, 5), n_jobs=1, scoring="r2")
+                train_sizes=np.linspace(0.25, 1.0, 4 if FAST_TRAINING else 5),
+                n_jobs=1, scoring="r2")
             self.artifacts.learning_curve = [
                 {"size": int(s),
                  "train_r2": float(train_scores[i].mean()),
@@ -389,6 +428,8 @@ class MLPipeline:
             f: float(df[f].mean()) for f in NUMERIC_FEATURES
             if f in df.columns
         }
+        self.training_current_model = ""
+        self.training_in_progress = False
 
     def to_dict(self) -> Dict[str, Any]:
         a = self.artifacts

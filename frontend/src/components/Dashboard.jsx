@@ -70,7 +70,9 @@ export default function Dashboard() {
           label={
             status?.trained
               ? "Loading analytics"
-              : "Warming ML pipeline on first boot"
+              : status?.current_model
+                ? `Training ${status.current_model} (${status.models_done || 0}/${status.models_total || 0})`
+                : "Warming ML pipeline on first boot"
           }
         />
       </div>

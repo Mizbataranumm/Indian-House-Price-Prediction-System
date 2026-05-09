@@ -179,6 +179,11 @@ async def status():
     fully_trained = bool(p.fitted) and bool(p.artifacts.best_model_name)
     return {
         "trained": fully_trained,
+        "training": bool(getattr(p, "training_in_progress", False)),
+        "current_model": getattr(p, "training_current_model", "") or None,
+        "models_done": int(getattr(p, "training_models_done", 0)),
+        "models_total": int(getattr(p, "training_models_total", 0)),
+        "training_started_at": getattr(p, "training_started_at", 0.0) or None,
         "best_model": p.artifacts.best_model_name or None,
         "n_rows": int(len(p.df)) if p.df is not None else 0,
         "dataset": "Kaggle - Housing Prices in Metropolitan Areas of India",
