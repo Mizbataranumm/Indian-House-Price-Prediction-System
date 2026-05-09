@@ -99,7 +99,7 @@ class PdfBody(BaseModel):
 # ---------- Background warmup ----------
 def _warmup():
     try:
-        ml_pipeline.pipeline.ensure_trained()
+        #ml_pipeline.pipeline.ensure_trained()
         log.info("ML pipeline trained: best=%s",
                  ml_pipeline.pipeline.artifacts.best_model_name)
     except Exception as e:
