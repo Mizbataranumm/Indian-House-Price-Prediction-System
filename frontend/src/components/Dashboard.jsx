@@ -22,21 +22,22 @@ export default function Dashboard() {
 
     (async () => {
       try {
-        for (let i = 0; i < 40; i += 1) {
+        while (alive) {
           const { data } = await api.get("/status");
           if (!alive) return;
           setStatus(data);
-          if (data.trained) break;
-          await sleep(2500);
+          if (data.trained) {
+            const [ar, sr] = await Promise.all([
+              api.get("/analytics", { timeout: 180000 }),
+              api.get("/dataset/summary", { timeout: 180000 }),
+            ]);
+            if (!alive) return;
+            setA(ar.data);
+            setS(sr.data);
+            return;
+          }
+          await sleep(3000);
         }
-
-        const [ar, sr] = await Promise.all([
-          api.get("/analytics"),
-          api.get("/dataset/summary"),
-        ]);
-        if (!alive) return;
-        setA(ar.data);
-        setS(sr.data);
       } catch (err) {
         if (!alive) return;
         setError(formatApiError(err));
