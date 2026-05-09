@@ -271,7 +271,8 @@ class MLPipeline:
                 pipe.fit(Xtr.iloc[svr_idx], ytr_log[svr_idx])
             else:
                 pipe.fit(Xtr, ytr_log)
-            pred = np.expm1(pipe.predict(Xte))
+            pred = np.clip(np.expm1(pipe.predict(Xte)), 1e5, 5e8)
+            pred = np.nan_to_num(pred, nan=1e6, posinf=5e8, neginf=1e5)
             try:
                 if name == "SVR":
                     cv_X, cv_y = X.iloc[svr_idx], ytr_log[svr_idx]
