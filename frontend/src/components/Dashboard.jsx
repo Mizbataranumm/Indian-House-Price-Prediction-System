@@ -5,33 +5,73 @@ import {
   AreaChart, Area, LineChart, Line, ScatterChart, Scatter, ZAxis, Cell,
 } from "recharts";
 import { TrendingUp, Database, Sparkles, ArrowUpRight, Cpu } from "lucide-react";
-import { Card, CardHeader, Stat, Spinner, Badge } from "./ui/Primitives";
-import { api, inr, inrCompact } from "../lib/api";
+import { Card, CardHeader, Stat, Spinner, Badge, ErrorState } from "./ui/Primitives";
+import { api, inr, inrCompact, formatApiError } from "../lib/api";
 
 const TICK = { fontSize: 11, fill: "#64748B" };
 
 export default function Dashboard() {
   const [a, setA] = useState(null);
   const [s, setS] = useState(null);
+  const [status, setStatus] = useState(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let alive = true;
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
     (async () => {
-      const [ar, sr] = await Promise.all([
-        api.get("/analytics"),
-        api.get("/dataset/summary"),
-      ]);
-      if (!alive) return;
-      setA(ar.data);
-      setS(sr.data);
+      try {
+        for (let i = 0; i < 40; i += 1) {
+          const { data } = await api.get("/status");
+          if (!alive) return;
+          setStatus(data);
+          if (data.trained) break;
+          await sleep(2500);
+        }
+
+        const [ar, sr] = await Promise.all([
+          api.get("/analytics"),
+          api.get("/dataset/summary"),
+        ]);
+        if (!alive) return;
+        setA(ar.data);
+        setS(sr.data);
+      } catch (err) {
+        if (!alive) return;
+        setError(formatApiError(err));
+      }
     })();
     return () => { alive = false; };
   }, []);
 
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <ErrorState
+          title="Dashboard data could not load"
+          message={error}
+        />
+        <Card className="p-5 text-sm text-ink-500">
+          Expected backend routes:
+          <div className="font-mono mt-2">/api/status</div>
+          <div className="font-mono">/api/analytics</div>
+          <div className="font-mono">/api/dataset/summary</div>
+        </Card>
+      </div>
+    );
+  }
+
   if (!a || !s) {
     return (
       <div className="card p-10 grid place-items-center min-h-[60vh]">
-        <Spinner label="Training pipeline & loading analytics" />
+        <Spinner
+          label={
+            status?.trained
+              ? "Loading analytics"
+              : "Warming ML pipeline on first boot"
+          }
+        />
       </div>
     );
   }

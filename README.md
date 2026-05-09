@@ -25,3 +25,25 @@ cd frontend && yarn && yarn start
 ```
 
 The first prediction triggers training (~45 s on the bundled dataset). All routes are under `/api`.
+
+## Render deployment
+
+Frontend:
+
+- Build command: `yarn && yarn build`
+- Publish directory: `build`
+- Environment variable: `REACT_APP_BACKEND_URL=https://your-backend-service.onrender.com`
+
+Backend:
+
+- Root directory: `backend`
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn server:app --host 0.0.0.0 --port $PORT`
+- Optional environment variables:
+  - `MONGO_URL`
+  - `DB_NAME`
+
+Notes:
+
+- If `MONGO_URL` and `DB_NAME` are not set, the API now starts anyway and uses in-memory history storage.
+- The backend warms the ML pipeline in the background on boot. First deploy or cold start can still take around a minute before analytics are ready.

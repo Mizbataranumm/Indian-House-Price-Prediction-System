@@ -55,7 +55,7 @@ def _build_preprocessor() -> ColumnTransformer:
         ("num", StandardScaler(), NUMERIC_FEATURES),
         # min_frequency keeps the OHE matrix bounded (groups rare localities).
         ("cat", OneHotEncoder(handle_unknown="ignore", min_frequency=25,
-                              sparse_output=False),
+                              sparse_output=True),
          CATEGORICAL_FEATURES),
     ])
 

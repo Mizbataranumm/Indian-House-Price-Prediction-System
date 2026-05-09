@@ -64,3 +64,12 @@ export function Badge({ children, tone = "neutral" }) {
     </span>
   );
 }
+
+export function ErrorState({ title = "Something went wrong", message }) {
+  return (
+    <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-900">
+      <div className="font-semibold">{title}</div>
+      <div className="mt-1 text-rose-800/90">{message}</div>
+    </div>
+  );
+}

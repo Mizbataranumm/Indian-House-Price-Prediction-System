@@ -24,10 +24,20 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("server")
 
-MONGO_URL = os.environ["MONGO_URL"]
-DB_NAME = os.environ["DB_NAME"]
-client = AsyncIOMotorClient(MONGO_URL)
-db = client[DB_NAME]
+MONGO_URL = os.environ.get("MONGO_URL")
+DB_NAME = os.environ.get("DB_NAME")
+client = None
+db = None
+_memory_predictions: List[Dict[str, Any]] = []
+
+if MONGO_URL and DB_NAME:
+    client = AsyncIOMotorClient(MONGO_URL)
+    db = client[DB_NAME]
+else:
+    log.warning(
+        "MongoDB env vars are not fully configured. "
+        "Prediction history will use in-memory storage."
+    )
 
 app = FastAPI(title="Indian House Price Prediction API")
 api = APIRouter(prefix="/api")
@@ -99,11 +109,43 @@ class PdfBody(BaseModel):
 # ---------- Background warmup ----------
 def _warmup():
     try:
-        #ml_pipeline.pipeline.ensure_trained()
+        log.info("Starting background ML warmup")
+        ml_pipeline.pipeline.ensure_trained()
         log.info("ML pipeline trained: best=%s",
                  ml_pipeline.pipeline.artifacts.best_model_name)
     except Exception as e:
         log.exception("Training failed: %s", e)
+
+
+async def _save_prediction(rec: Dict[str, Any]) -> None:
+    if db is not None:
+        await db.predictions.insert_one(rec.copy())
+        return
+    _memory_predictions.append(rec.copy())
+
+
+async def _list_predictions(session_id: str, limit: int) -> List[Dict[str, Any]]:
+    if db is not None:
+        cur = db.predictions.find(
+            {"session_id": session_id}, {"_id": 0}
+        ).sort("created_at", -1).limit(limit)
+        return [r async for r in cur]
+
+    items = [r for r in reversed(_memory_predictions)
+             if r["session_id"] == session_id]
+    return items[:limit]
+
+
+async def _clear_predictions(session_id: str) -> int:
+    if db is not None:
+        res = await db.predictions.delete_many({"session_id": session_id})
+        return int(res.deleted_count)
+
+    before = len(_memory_predictions)
+    _memory_predictions[:] = [
+        r for r in _memory_predictions if r["session_id"] != session_id
+    ]
+    return before - len(_memory_predictions)
 
 
 @app.on_event("startup")
@@ -112,6 +154,20 @@ async def on_start():
 
 
 # ---------- Routes ----------
+@app.get("/")
+async def app_root():
+    return {
+        "status": "ok",
+        "service": "indian-house-price-prediction",
+        "docs_hint": "/api/",
+    }
+
+
+@app.head("/")
+async def app_root_head():
+    return
+
+
 @api.get("/")
 async def root():
     return {"status": "ok", "service": "indian-house-price-prediction"}
@@ -126,6 +182,7 @@ async def status():
         "best_model": p.artifacts.best_model_name or None,
         "n_rows": int(len(p.df)) if p.df is not None else 0,
         "dataset": "Kaggle - Housing Prices in Metropolitan Areas of India",
+        "storage": "mongodb" if db is not None else "memory",
     }
 
 
@@ -189,7 +246,7 @@ async def predict(body: PropertyInput, save: bool = Query(True),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if save:
-        await db.predictions.insert_one(rec.copy())
+        await _save_prediction(rec)
     return rec
 
 
@@ -218,16 +275,12 @@ async def predict_compare(body: CompareBody):
 
 @api.get("/history")
 async def history(session_id: str = "anonymous", limit: int = 50):
-    cur = db.predictions.find(
-        {"session_id": session_id}, {"_id": 0}
-    ).sort("created_at", -1).limit(limit)
-    return {"items": [r async for r in cur]}
+    return {"items": await _list_predictions(session_id, limit)}
 
 
 @api.delete("/history")
 async def clear_history(session_id: str = "anonymous"):
-    res = await db.predictions.delete_many({"session_id": session_id})
-    return {"deleted": res.deleted_count}
+    return {"deleted": await _clear_predictions(session_id)}
 
 
 @api.post("/emi")
