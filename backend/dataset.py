@@ -138,22 +138,11 @@ def build_canonical(force: bool = False) -> pd.DataFrame:
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df.dropna(inplace=True)
 
-    # Locality median price per sqft
-    loc_med = (
-        df.groupby(["city", "locality"])["price_per_sqft"]
-        .transform("median")
-    )
-
-    df["locality_psf_median"] = loc_med
-
-    # City median ₹/sqft
-    df["city_psf_median"] = (
-        df.groupby("city")["price_per_sqft"]
-            .transform("median")
-    )
+    # Note: locality_psf_median and city_psf_median are intentionally not precomputed
+    # here to avoid target leakage. They are computed in ml_pipeline._train strictly
+    # from training rows (out-of-fold for train, full-train for test).
 
     # Final cleanup
-       # Final cleanup
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     df.dropna(inplace=True)
 

@@ -1,0 +1,109 @@
+
+================================================================================
+DATASET SUMMARY & VERIFICATION
+================================================================================
+Sum of rows of six raw CSVs: 32963
+  - Mumbai: 7719, Delhi: 4998, Bangalore: 6207
+  - Chennai: 5014, Hyderabad: 2518, Kolkata: 6507
+Rows in canonical CSV (after initial cleaning & price/area/BHK sanity): 32517
+Rows after price_per_sqft IQR filtering (k=2.5): 30603
+Rows after area_sqft IQR filtering (k=3.0): 29908
+Training set size (80% split): 23926
+Test set size (20% split): 5982
+
+================================================================================
+TABLE A: LEAKY BASELINE (Original Features With Precomputed Medians)
+================================================================================
+            Model  Test R2  Test MAE (Lakh)  Test RMSE (Lakh)  Test MAPE (%)  Fit Time (s)
+Linear Regression 0.443869        28.142297         46.767488      38.118006          0.67
+ Ridge Regression 0.444402        28.130197         46.745075      38.105136          0.54
+ Lasso Regression 0.443660        28.443988         46.776289      38.820508          0.64
+    Random Forest 0.523090        24.878807         43.308565      33.814588         29.02
+          XGBoost 0.518956        25.099342         43.495890      33.912000          4.56
+              SVR 0.431911        27.158856         47.267632      35.966961          4.50
+
+================================================================================
+TABLE III: LEAKAGE-FREE EVALUATION (OOF Medians on Train, Clean Medians on Test)
+================================================================================
+            Model  Train R2  Test R2  Test MAE (Lakh)  Test RMSE (Lakh)  Test MAPE (%)  Fit Time (s)
+Linear Regression  0.420462 0.409655        28.962926         48.184642      39.346490          1.45
+ Ridge Regression  0.420321 0.410422        28.947760         48.153318      39.321617          1.11
+ Lasso Regression  0.400432 0.411149        29.325998         48.123624      40.168294          1.26
+    Random Forest  0.662528 0.465823        26.416482         45.835127      35.598740        107.79
+          XGBoost  0.591630 0.488647        26.203705         44.845219      35.497049          2.02
+              SVR  0.402459 0.385885        28.563362         49.145143      37.796347         18.15
+
+Best Model: XGBoost
+
+================================================================================
+TABLE C: 95% BOOTSTRAP CONFIDENCE INTERVALS (Best Model: XGBoost, 1000 Resamples)
+================================================================================
+     Metric  Point Estimate  95% CI Lower  95% CI Upper
+         R2        0.488647      0.450472      0.526070
+ MAE (Lakh)       26.203705     25.361636     27.078101
+RMSE (Lakh)       44.845219     42.402540     47.385232
+   MAPE (%)       35.497049     34.343904     36.689974
+
+================================================================================
+TABLE IV: REPEATED 5-FOLD CROSS-VALIDATION (Training Set Only, 3 Repeats = 15 Folds)
+================================================================================
+            Model  R2 Mean   R2 Std  MAE Mean (Lakh)  MAE Std (Lakh)  RMSE Mean (Lakh)  RMSE Std (Lakh)  MAPE Mean (%)  MAPE Std (%)
+Linear Regression 0.404522 0.014204        28.876568        0.636936         48.844741         1.457582      39.515026      0.544346
+ Ridge Regression 0.405135 0.014264        28.863600        0.638162         48.819548         1.457179      39.514447      0.534804
+ Lasso Regression 0.396337 0.019605        29.240015        0.628337         49.173726         1.473269      40.370742      0.559792
+    Random Forest 0.457367 0.016962        26.368071        0.583650         46.617764         1.214884      36.109118      0.578752
+          XGBoost 0.469457 0.016628        26.218537        0.567166         46.097087         1.265763      35.901595      0.634446
+              SVR 0.391767 0.021943        27.950920        0.564533         49.354625         1.392910      37.553778      0.781044
+
+================================================================================
+TABLE E: CORRECTED RESAMPLED T-TEST ON FOLD-WISE RMSE (Nadeau & Bengio, ratio=1/4)
+Reference Best Model: XGBoost
+================================================================================
+                  Comparison  Mean RMSE Diff (Lakh)  Corrected Std Err  t-statistic      p-value  Significant (p<0.05)
+XGBoost vs Linear Regression               2.747654           0.313371     8.768051 4.637568e-07                  True
+ XGBoost vs Ridge Regression               2.722461           0.314518     8.655988 5.408379e-07                  True
+ XGBoost vs Lasso Regression               3.076639           0.431701     7.126789 5.117519e-06                  True
+    XGBoost vs Random Forest               0.520677           0.157152     3.313210 5.125776e-03                  True
+              XGBoost vs SVR               3.257537           0.442429     7.362853 3.549114e-06                  True
+
+================================================================================
+TABLE F: ABLATION STUDY (Best Model: XGBoost)
+================================================================================
+            Configuration  Test R2  Test MAE (Lakh)  Test RMSE (Lakh)  Test MAPE (%)
+With Leakage-Free Medians 0.488647        26.203705         44.845219      35.497049
+Ablated (Without Medians) 0.430397        27.725710         47.330578      36.974671
+
+================================================================================
+TABLE V: LEAVE-ONE-CITY-OUT EVALUATION (Best Model: XGBoost)
+================================================================================
+Held-Out City  Test Rows   Test R2  Test MAE (Lakh)  Test RMSE (Lakh)  Test MAPE (%)
+       Mumbai       6231 -0.210618        51.605980         74.942236      47.690795
+        Delhi       4577  0.263417        42.649445         64.886649      51.694687
+    Bangalore       5849  0.255656        34.704343         52.715502      50.887503
+      Chennai       4796  0.260329        28.608207         56.262170      37.199645
+    Hyderabad       2413  0.530836        24.640715         37.601408      35.924554
+      Kolkata       6042 -0.081534        32.133493         42.619697      73.886516
+
+================================================================================
+TABLE H: PREDICTION-INTERVAL COVERAGE (Random Forest, Nominal 90%)
+================================================================================
+ Nominal Coverage (%)  Empirical Coverage (%)  Mean Relative Width  Total Test Rows  Covered Rows
+                 90.0               68.371782             0.858889             5982          4090
+
+================================================================================
+TABLE I: TOP 10 FEATURES (SHAP vs. XGBoost Feature Importance)
+================================================================================
+ Rank Top Feature by Mean |SHAP|  Mean |SHAP| (log scale) Top Feature by XGBoost FI  XGBoost Feature Importance
+    1                   locality                 4.792633                  locality                    0.617357
+    2                  area_sqft                 0.221872                      city                    0.095454
+    3        locality_psf_median                 0.142962       locality_psf_median                    0.035580
+    4               sqft_per_bhk                 0.083032         amen_power_backup                    0.025207
+    5            city_psf_median                 0.068735            amen_rainwater                    0.019569
+    6                       city                 0.067990                 area_sqft                    0.015226
+    7              amenity_score                 0.063671                 amen_pool                    0.013322
+    8                amen_sports                 0.054990                  amen_gas                    0.012931
+    9                     resale                 0.033842         amen_refrigerator                    0.012044
+   10                        bhk                 0.029473                 amen_lift                    0.009340
+
+Total Execution Time: 943.4 seconds (15.72 minutes)
+================================================================================

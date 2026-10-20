@@ -17,7 +17,7 @@ from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split, cross_val_score, learning_curve
+from sklearn.model_selection import train_test_split, cross_val_score, learning_curve, KFold
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -138,7 +138,7 @@ class MLPipeline:
         self.training_models_total = 0
         self.training_models_done = 0
         # Per-locality and city ₹/sqft medians used to fill engineered features
-        # for new (user-input) rows.
+        # for new (user-input) rows — built from training rows ONLY.
         self._loc_psf: Dict[tuple, float] = {}
         self._city_psf: Dict[str, float] = {}
 
@@ -222,7 +222,7 @@ class MLPipeline:
     def _payload_to_df(self, p: Dict[str, Any]) -> pd.DataFrame:
         """Build a single-row DF that matches NUMERIC + CATEGORICAL features.
         Engineered fields (locality_psf_median, city_psf_median, sqft_per_bhk,
-        amenity_score) are computed here for new inputs."""
+        amenity_score) are computed here for new inputs using training-set medians."""
         city = p.get("city")
         locality = p.get("locality") or city
         # locality_psf_median fallback: city median, then global median
@@ -260,20 +260,66 @@ class MLPipeline:
         df = ds_mod.build_canonical(force=False)
         df = _remove_outliers(df, ["price_per_sqft"], k=2.5)
         df = _remove_outliers(df, ["area_sqft"], k=3.0)
-        self.df = df
 
-        # Cache lookup tables for engineered features at predict-time
-        self._loc_psf = (
-            df.groupby(["city", "locality"])["price_per_sqft"].median().to_dict()
-        )
+        # Drop legacy precomputed target medians if present in cached canonical CSV
+        for col in ["locality_psf_median", "city_psf_median"]:
+            if col in df.columns:
+                df = df.drop(columns=[col])
+
+        # Train-test split (80/20, random_state=42) strictly before computing medians
+        train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
+
+        # 1. Cache lookup tables from training rows ONLY for user inputs and test evaluation
+        global_med = float(train_df["price_per_sqft"].median())
         self._city_psf = (
-            df.groupby("city")["price_per_sqft"].median().to_dict()
+            train_df.groupby("city")["price_per_sqft"].median().to_dict()
+        )
+        self._loc_psf = (
+            train_df.groupby(["city", "locality"])["price_per_sqft"].median().to_dict()
         )
 
-        X = df[NUMERIC_FEATURES + CATEGORICAL_FEATURES]
-        y = df[TARGET].values
+        def _apply_lookup(data_df: pd.DataFrame, g_med: float, c_med: dict, l_med: dict):
+            c_vals = [c_med.get(c, g_med) for c in data_df["city"]]
+            l_vals = [
+                l_med.get((c, loc), c_med.get(c, g_med))
+                for c, loc in zip(data_df["city"], data_df["locality"])
+            ]
+            return np.array(l_vals, dtype=float), np.array(c_vals, dtype=float)
 
-        Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=42)
+        # 2. For training rows: 5-fold out-of-fold values (KFold shuffle, random_state=42)
+        kf = KFold(n_splits=5, shuffle=True, random_state=42)
+        oof_loc = np.zeros(len(train_df), dtype=float)
+        oof_city = np.zeros(len(train_df), dtype=float)
+
+        for tr_idx, val_idx in kf.split(train_df):
+            f_tr = train_df.iloc[tr_idx]
+            f_val = train_df.iloc[val_idx]
+            f_g = float(f_tr["price_per_sqft"].median())
+            f_c = f_tr.groupby("city")["price_per_sqft"].median().to_dict()
+            f_l = f_tr.groupby(["city", "locality"])["price_per_sqft"].median().to_dict()
+
+            l_vals, c_vals = _apply_lookup(f_val, f_g, f_c, f_l)
+            oof_loc[val_idx] = l_vals
+            oof_city[val_idx] = c_vals
+
+        train_df = train_df.copy()
+        train_df["locality_psf_median"] = oof_loc
+        train_df["city_psf_median"] = oof_city
+
+        # 3. For test rows: use full-training-set medians with the same fallbacks
+        test_df = test_df.copy()
+        test_loc, test_city = _apply_lookup(test_df, global_med, self._city_psf, self._loc_psf)
+        test_df["locality_psf_median"] = test_loc
+        test_df["city_psf_median"] = test_city
+
+        # Keep self.df containing the computed features for analytics routes
+        self.df = pd.concat([train_df, test_df], axis=0)
+
+        Xtr = train_df[NUMERIC_FEATURES + CATEGORICAL_FEATURES]
+        Xte = test_df[NUMERIC_FEATURES + CATEGORICAL_FEATURES]
+        ytr = train_df[TARGET].values
+        yte = test_df[TARGET].values
+
         self.X_train, self.X_test, self.y_train, self.y_test = Xtr, Xte, ytr, yte
 
         # Train all models on log(price); evaluate on raw INR.
@@ -286,14 +332,14 @@ class MLPipeline:
             size=min(1500 if FAST_TRAINING else 3000, len(Xtr)),
             replace=False,
         )
-        # For CV we use a sub-sample so total time stays bounded
+        # For CV we use a sub-sample of training rows so total time stays bounded
         cv_idx = rng.choice(
-            len(X),
-            size=min(4000 if FAST_TRAINING else 8000, len(X)),
+            len(Xtr),
+            size=min(4000 if FAST_TRAINING else 8000, len(Xtr)),
             replace=False,
         )
-        cv_X_full = X.iloc[cv_idx]
-        cv_y_full = np.log1p(y[cv_idx])
+        cv_X_full = Xtr.iloc[cv_idx]
+        cv_y_full = np.log1p(ytr[cv_idx])
 
         models = _models()
         self.training_models_total = len(models)
@@ -309,7 +355,7 @@ class MLPipeline:
             pred = np.nan_to_num(pred, nan=1e6, posinf=5e8, neginf=1e5)
             try:
                 if name == "SVR":
-                    cv_X, cv_y = X.iloc[svr_idx], ytr_log[svr_idx]
+                    cv_X, cv_y = Xtr.iloc[svr_idx], ytr_log[svr_idx]
                 else:
                     cv_X, cv_y = cv_X_full, cv_y_full
                 cv = cross_val_score(pipe, cv_X, cv_y, cv=3, scoring="r2", n_jobs=1)
@@ -362,20 +408,20 @@ class MLPipeline:
             "amen_gym", "amen_pool", "amen_security", "amen_lift", "amen_parking",
             TARGET,
         ]
-        corr = df[corr_cols].corr(numeric_only=True).round(3)
+        corr = self.df[corr_cols].corr(numeric_only=True).round(3)
         self.artifacts.correlation = {
             "labels": list(corr.columns),
             "matrix": corr.values.tolist(),
         }
 
         hist, edges = np.histogram(
-            df[TARGET].clip(upper=df[TARGET].quantile(0.99)) / 1e5, bins=30)
+            self.df[TARGET].clip(upper=self.df[TARGET].quantile(0.99)) / 1e5, bins=30)
         self.artifacts.price_histogram = [
             {"bin": float((edges[i] + edges[i + 1]) / 2), "count": int(hist[i])}
             for i in range(len(hist))
         ]
 
-        s = df[["area_sqft", TARGET, "city"]].sample(min(800, len(df)), random_state=1)
+        s = self.df[["area_sqft", TARGET, "city"]].sample(min(800, len(self.df)), random_state=1)
         self.artifacts.price_vs_area = [
             {"area": int(r.area_sqft), "price": int(getattr(r, TARGET)), "city": r.city}
             for r in s.itertuples()
@@ -391,14 +437,14 @@ class MLPipeline:
         ]
 
         try:
-            # Use a sub-sample to keep learning_curve fast
+            # Use a sub-sample of training rows to keep learning_curve fast
             lc_idx = np.random.default_rng(1).choice(
-                len(X),
-                size=min(2500 if FAST_TRAINING else 6000, len(X)),
+                len(Xtr),
+                size=min(2500 if FAST_TRAINING else 6000, len(Xtr)),
                 replace=False,
             )
             sizes, train_scores, val_scores = learning_curve(
-                self.fitted[best], X.iloc[lc_idx], np.log1p(y[lc_idx]), cv=3,
+                self.fitted[best], Xtr.iloc[lc_idx], np.log1p(ytr[lc_idx]), cv=3,
                 train_sizes=np.linspace(0.25, 1.0, 4 if FAST_TRAINING else 5),
                 n_jobs=1, scoring="r2")
             self.artifacts.learning_curve = [
@@ -410,7 +456,7 @@ class MLPipeline:
         except Exception as e:
             log.warning("learning_curve failed: %s", e)
 
-        agg = df.groupby("city").agg(
+        agg = self.df.groupby("city").agg(
             mean_price=(TARGET, "mean"),
             median_price=(TARGET, "median"),
             mean_psf=("price_per_sqft", "mean"),
@@ -425,8 +471,8 @@ class MLPipeline:
         ]
 
         self.artifacts.feature_means = {
-            f: float(df[f].mean()) for f in NUMERIC_FEATURES
-            if f in df.columns
+            f: float(Xtr[f].mean()) for f in NUMERIC_FEATURES
+            if f in Xtr.columns
         }
         self.training_current_model = ""
         self.training_in_progress = False
